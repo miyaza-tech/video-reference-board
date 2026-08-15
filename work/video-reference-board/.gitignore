@@ -1,0 +1,32 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Firebase 자격증명이 들어 있으므로 커밋하지 않습니다. (.env.example만 추적)
+.env
+.env.*
+!.env.example
+
+# firebase deploy가 남기는 업로드 캐시
+.firebase/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
