@@ -3,7 +3,8 @@ import type { BoardItem, NewItemInput, Platform } from './types'
 const PLATFORM_HOSTS: Record<Platform, string[]> = {
   x: ['x.com', 'twitter.com'],
   instagram: ['instagram.com', 'www.instagram.com'],
-  threads: ['threads.net', 'www.threads.net'],
+  // Threads는 threads.com으로 옮겨갔습니다. 예전에 저장한 링크를 위해 .net도 남겨둡니다.
+  threads: ['threads.com', 'www.threads.com', 'threads.net', 'www.threads.net'],
   linkedin: ['linkedin.com', 'www.linkedin.com'],
   facebook: ['facebook.com', 'www.facebook.com', 'm.facebook.com', 'fb.watch', 'fb.com'],
 }
