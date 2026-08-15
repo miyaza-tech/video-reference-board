@@ -10,10 +10,9 @@ import {
 import { ref, uploadString, getDownloadURL } from 'firebase/storage'
 import { firestore, storage } from './firebase'
 import { createBoardItem, deriveHandle, normalizeUrl } from './metadata'
-import type { BoardItem, EmbedKind, FavoriteMode, NewItemInput, Platform, SortMode } from './types'
+import type { BoardItem, FavoriteMode, NewItemInput, Platform, SortMode } from './types'
 
 const VALID_PLATFORMS: Platform[] = ['x', 'instagram', 'threads', 'linkedin', 'facebook']
-const VALID_EMBED_KINDS: EmbedKind[] = ['iframe', 'none']
 
 function validateAndSanitize(raw: unknown): BoardItem[] {
   if (!Array.isArray(raw)) throw new Error('유효하지 않은 파일입니다.')
@@ -25,8 +24,8 @@ function validateAndSanitize(raw: unknown): BoardItem[] {
     if (!VALID_PLATFORMS.includes(r.platform as Platform)) throw new Error(`항목 ${i + 1}: 지원하지 않는 플랫폼입니다.`)
     if (typeof r.title !== 'string') throw new Error(`항목 ${i + 1}: title이 올바르지 않습니다.`)
     if (typeof r.savedAt !== 'string') throw new Error(`항목 ${i + 1}: savedAt이 올바르지 않습니다.`)
-    const embedKind = VALID_EMBED_KINDS.includes(r.embedKind as EmbedKind) ? (r.embedKind as EmbedKind) : 'none'
-    // embedHtml은 외부 JSON에서 XSS가 유입될 수 있으므로 제거합니다.
+    // 아래 필드만 그대로 옮깁니다. 외부 JSON의 나머지 키(과거 embedHtml 등)는
+    // XSS 유입 경로가 될 수 있으므로 전부 버립니다.
     return {
       id: r.id as string,
       url: r.url as string,
@@ -35,7 +34,6 @@ function validateAndSanitize(raw: unknown): BoardItem[] {
       description: typeof r.description === 'string' ? r.description : '',
       author: typeof r.author === 'string' ? r.author : '',
       imageUrl: typeof r.imageUrl === 'string' ? r.imageUrl : '',
-      embedKind,
       tags: Array.isArray(r.tags) ? (r.tags as unknown[]).filter((t): t is string => typeof t === 'string') : [],
       favorite: r.favorite === true,
       savedAt: r.savedAt as string,
@@ -157,8 +155,6 @@ interface BoardState {
   addItem: (input: NewItemInput) => Promise<void>
   removeItem: (id: string) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
-  updateTags: (id: string, tags: string[]) => Promise<void>
-  updateThumbnail: (id: string, imageUrl: string) => Promise<void>
   updateItem: (id: string, patch: Partial<Pick<BoardItem, 'title' | 'author' | 'description' | 'tags' | 'imageUrl'>>) => Promise<void>
   importItems: (raw: unknown) => Promise<void>
   setSearch: (search: string) => void
@@ -236,18 +232,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     const favorite = !item.favorite
     await updateDoc(itemDoc(uid, id), { favorite })
     set({ items: get().items.map((candidate) => (candidate.id === id ? { ...candidate, favorite } : candidate)) })
-  },
-  updateTags: async (id, tags) => {
-    const { uid } = get()
-    if (!uid) return
-    await updateDoc(itemDoc(uid, id), { tags })
-    set({ items: get().items.map((item) => (item.id === id ? { ...item, tags } : item)) })
-  },
-  updateThumbnail: async (id, imageUrl) => {
-    const { uid } = get()
-    if (!uid) return
-    await updateDoc(itemDoc(uid, id), { imageUrl })
-    set({ items: get().items.map((item) => (item.id === id ? { ...item, imageUrl } : item)) })
   },
   updateItem: async (id, patch) => {
     const { uid } = get()
