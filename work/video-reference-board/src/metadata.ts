@@ -29,10 +29,9 @@ type OEmbedResponse = {
   author_name?: string
   provider_name?: string
   thumbnail_url?: string
-  html?: string
 }
 
-export function detectPlatform(input: string): Platform {
+function detectPlatform(input: string): Platform {
   const url = new URL(input)
   const host = url.hostname.toLowerCase().replace(/^www\./, '')
   const platform = (Object.keys(PLATFORM_HOSTS) as Platform[]).find((key) =>
@@ -62,8 +61,6 @@ export async function createBoardItem(input: NewItemInput): Promise<BoardItem> {
     // (X oEmbed는 아이디가 아닌 표시 이름을 주므로 아이디가 있으면 그게 낫습니다.)
     author: fallback.author.startsWith('@') ? fallback.author : embedded?.author_name || fallback.author,
     imageUrl: input.imageUrl || embedded?.thumbnail_url || fallback.imageUrl,
-    ...(embedded?.html ? { embedHtml: embedded.html } : {}),
-    embedKind: embedded?.html ? 'iframe' : 'none',
     tags: input.tags,
     favorite: false,
     savedAt: new Date().toISOString(),

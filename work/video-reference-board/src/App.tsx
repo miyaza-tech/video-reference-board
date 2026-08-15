@@ -9,6 +9,7 @@ import {
   LogOut,
   Pencil,
   Plus,
+  Search,
   Tag,
   Trash2,
   X as XIcon,
@@ -18,7 +19,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, googleProvider, storage } from './firebase'
 import { getPlatformLabel } from './metadata'
 import { useBoardStore } from './store'
-import type { BoardItem, Platform } from './types'
+import type { BoardItem, Platform, SortMode } from './types'
 import './index.css'
 
 const platforms: Array<'all' | Platform> = ['all', 'x', 'instagram', 'threads', 'linkedin', 'facebook']
@@ -34,6 +35,32 @@ const masonryBreakpoints = {
   1000: 3,
   720: 2,
   460: 1,
+}
+
+const sortLabels: Record<SortMode, string> = {
+  newest: '최신순',
+  oldest: '오래된순',
+  title: '제목순',
+  platform: '플랫폼순',
+}
+
+const sorters: Record<SortMode, (a: BoardItem, b: BoardItem) => number> = {
+  newest: (a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt),
+  oldest: (a, b) => Date.parse(a.savedAt) - Date.parse(b.savedAt),
+  title: (a, b) => a.title.localeCompare(b.title, 'ko'),
+  // 같은 플랫폼끼리 묶고, 그 안에서는 최신순으로 둡니다.
+  platform: (a, b) => a.platform.localeCompare(b.platform) || Date.parse(b.savedAt) - Date.parse(a.savedAt),
+}
+
+// 검색어는 제목·작성자·설명·태그·URL 전체에서 찾습니다.
+function matchesQuery(item: BoardItem, query: string) {
+  return (
+    item.title.toLowerCase().includes(query) ||
+    item.author.toLowerCase().includes(query) ||
+    item.description.toLowerCase().includes(query) ||
+    item.url.toLowerCase().includes(query) ||
+    item.tags.some((tag) => tag.toLowerCase().includes(query))
+  )
 }
 
 function parseTags(value: string) {
@@ -76,11 +103,73 @@ async function uploadThumbnail(uid: string, file: File): Promise<string> {
   return getDownloadURL(storageRef)
 }
 
+// 섬네일 선택 → 압축 → Storage 업로드까지의 상태를 한곳에서 관리합니다.
+// 실패는 삼키지 않고 error로 노출해 폼 안에 그대로 표시합니다.
+function useThumbnailPicker() {
+  const [imageUrl, setImageUrl] = useState('')
+  const [name, setName] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function pick(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const uid = useBoardStore.getState().uid
+    if (!uid) return
+    setUploading(true)
+    setError('')
+    try {
+      const url = await uploadThumbnail(uid, file)
+      setImageUrl(url)
+      setName(file.name)
+    } catch (err) {
+      console.error('thumbnail upload failed', err)
+      setError(err instanceof Error && err.message ? err.message : '섬네일 업로드에 실패했습니다.')
+      // 같은 파일을 다시 고를 수 있도록 input을 비웁니다.
+      event.target.value = ''
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function reset() {
+    setImageUrl('')
+    setName('')
+    setError('')
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  return { imageUrl, name, uploading, error, inputRef, pick, reset }
+}
+
+// 섬네일 선택 버튼 + 숨은 file input + 에러 표시를 묶은 공용 UI입니다.
+function ThumbnailField({ picker, label }: { picker: ReturnType<typeof useThumbnailPicker>; label: string }) {
+  const { inputRef, uploading, name, error, pick } = picker
+  return (
+    <>
+      <button
+        className="secondary-button w-full max-w-none"
+        type="button"
+        disabled={uploading}
+        onClick={() => inputRef.current?.click()}
+      >
+        <ImagePlus size={17} />
+        {uploading ? 'Uploading' : name || label}
+      </button>
+      <input ref={inputRef} className="hidden" type="file" accept="image/*" onChange={(e) => void pick(e)} />
+      {error ? <p className="-mt-2 text-xs text-red-300">{error}</p> : null}
+    </>
+  )
+}
+
 function App() {
   const {
     items,
     platform,
     favoriteMode,
+    search,
+    sortMode,
     loading,
     error,
     setUid,
@@ -91,6 +180,8 @@ function App() {
     importItems,
     setPlatform,
     setFavoriteMode,
+    setSearch,
+    setSortMode,
     clearError,
   } = useBoardStore()
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -98,13 +189,11 @@ function App() {
   const [url, setUrl] = useState('')
   const [tagText, setTagText] = useState('')
   const [editingItem, setEditingItem] = useState<BoardItem | null>(null)
-  const [thumbnailDataUrl, setThumbnailDataUrl] = useState('')
-  const [thumbnailName, setThumbnailName] = useState('')
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const thumbnailInputRef = useRef<HTMLInputElement>(null)
+  const thumbnail = useThumbnailPicker()
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
@@ -115,13 +204,15 @@ function App() {
   }, [setUid])
 
   const visibleItems = useMemo(() => {
+    const query = search.trim().toLowerCase()
     return items
       .filter((item) => platform === 'all' || item.platform === platform)
       .filter((item) => favoriteMode === 'all' || item.favorite)
       .filter((item) => !activeTag || item.tags.includes(activeTag))
       .filter((item) => !activeAuthor || item.author === activeAuthor)
-      .sort((a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt))
-  }, [activeAuthor, activeTag, favoriteMode, items, platform])
+      .filter((item) => !query || matchesQuery(item, query))
+      .sort(sorters[sortMode])
+  }, [activeAuthor, activeTag, favoriteMode, items, platform, search, sortMode])
 
   const allTags = useMemo(
     () => Array.from(new Set([...presetTags, ...items.flatMap((item) => item.tags)])).sort(),
@@ -217,27 +308,13 @@ function App() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    await addItem({ url, tags: parseTags(tagText), imageUrl: thumbnailDataUrl || undefined })
+    await addItem({ url, tags: parseTags(tagText), imageUrl: thumbnail.imageUrl || undefined })
     if (!useBoardStore.getState().error) {
       setUrl('')
       setTagText('')
-      setThumbnailDataUrl('')
-      setThumbnailName('')
-      if (thumbnailInputRef.current) {
-        thumbnailInputRef.current.value = ''
-      }
+      thumbnail.reset()
       setIsDrawerOpen(false)
     }
-  }
-
-  async function handleThumbnailPick(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
-    const uid = useBoardStore.getState().uid
-    if (!uid) return
-    const url = await uploadThumbnail(uid, file)
-    setThumbnailDataUrl(url)
-    setThumbnailName(file.name)
   }
 
   function exportJson() {
@@ -323,6 +400,33 @@ function App() {
               {otherTags.length > 0 ? <div className="filter-group">{otherTags.map(renderTag)}</div> : null}
             </div>
             <div className="order-1 flex flex-wrap items-center gap-2 sm:order-2 sm:shrink-0">
+              <div className="input-shell w-full min-h-9 sm:w-52">
+                <Search size={16} className="shrink-0 text-zinc-500" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="검색"
+                  className="field text-sm"
+                  aria-label="검색"
+                />
+                {search ? (
+                  <button type="button" className="shrink-0 text-zinc-500 hover:text-zinc-200" title="검색어 지우기" onClick={() => setSearch('')}>
+                    <XIcon size={15} />
+                  </button>
+                ) : null}
+              </div>
+              <select
+                className="select"
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value as SortMode)}
+                aria-label="정렬"
+              >
+                {(Object.keys(sortLabels) as SortMode[]).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {sortLabels[mode]}
+                  </option>
+                ))}
+              </select>
               <button className="chip" type="button" onClick={exportJson}>
                 <Download size={15} />
                 Export
@@ -390,13 +494,9 @@ function App() {
             ))}
           </div>
 
-          <button className="secondary-button w-full max-w-none" type="button" onClick={() => thumbnailInputRef.current?.click()}>
-            <ImagePlus size={17} />
-            {thumbnailName || 'Thumbnail'}
-          </button>
-          <input ref={thumbnailInputRef} className="hidden" type="file" accept="image/*" onChange={handleThumbnailPick} />
+          <ThumbnailField picker={thumbnail} label="Thumbnail" />
 
-          <button className="primary-button mt-2" type="submit" disabled={loading}>
+          <button className="primary-button mt-2" type="submit" disabled={loading || thumbnail.uploading}>
             {loading ? 'Saving' : 'Save'}
           </button>
         </form>
@@ -406,7 +506,7 @@ function App() {
 
       <section className="mx-auto max-w-[1880px] px-4 py-6 sm:px-6 lg:px-8">
         {visibleItems.length === 0 ? (
-          <EmptyState />
+          <EmptyState filtered={items.length > 0} />
         ) : (
           <Masonry breakpointCols={masonryBreakpoints} className="masonry-grid" columnClassName="masonry-column">
             {visibleItems.map((item) => (
@@ -521,10 +621,8 @@ function EditModal({
   const [author, setAuthor] = useState(item.author)
   const [description, setDescription] = useState(item.description)
   const [tagText, setTagText] = useState(item.tags.join(', '))
-  const [thumbnailDataUrl, setThumbnailDataUrl] = useState('')
-  const [thumbnailName, setThumbnailName] = useState('')
   const [saving, setSaving] = useState(false)
-  const thumbnailInputRef = useRef<HTMLInputElement>(null)
+  const thumbnail = useThumbnailPicker()
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -542,19 +640,9 @@ function EditModal({
       author: author.trim(),
       description: description.trim(),
       tags: parseTags(tagText),
-      ...(thumbnailDataUrl ? { imageUrl: thumbnailDataUrl } : {}),
+      ...(thumbnail.imageUrl ? { imageUrl: thumbnail.imageUrl } : {}),
     })
     setSaving(false)
-  }
-
-  async function handleThumbnailPick(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
-    const uid = useBoardStore.getState().uid
-    if (!uid) return
-    const url = await uploadThumbnail(uid, file)
-    setThumbnailDataUrl(url)
-    setThumbnailName(file.name)
   }
 
   return (
@@ -606,17 +694,13 @@ function EditModal({
             ))}
           </div>
 
-          <button className="secondary-button w-full max-w-none" type="button" onClick={() => thumbnailInputRef.current?.click()}>
-            <ImagePlus size={17} />
-            {thumbnailName || 'Change Thumbnail'}
-          </button>
-          <input ref={thumbnailInputRef} className="hidden" type="file" accept="image/*" onChange={handleThumbnailPick} />
+          <ThumbnailField picker={thumbnail} label="Change Thumbnail" />
 
           <div className="flex gap-2 pt-1">
             <button className="secondary-button flex-1 max-w-none" type="button" onClick={onClose}>
               Cancel
             </button>
-            <button className="primary-button flex-1" type="submit" disabled={saving}>
+            <button className="primary-button flex-1" type="submit" disabled={saving || thumbnail.uploading}>
               {saving ? 'Saving' : 'Save'}
             </button>
           </div>
@@ -626,14 +710,18 @@ function EditModal({
   )
 }
 
-function EmptyState() {
+// filtered=true면 저장된 항목은 있는데 현재 검색·필터에 걸리는 게 없는 상태입니다.
+function EmptyState({ filtered }: { filtered: boolean }) {
   return (
     <div className="grid min-h-[52vh] place-items-center rounded-lg border border-dashed border-white/15 bg-zinc-900/40 px-6 text-center">
       <div className="max-w-md">
         <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-lg bg-white text-zinc-950">
-          <Link size={22} />
+          {filtered ? <Search size={22} /> : <Link size={22} />}
         </div>
-        <h2 className="text-lg font-semibold text-white">No links saved yet</h2>
+        <h2 className="text-lg font-semibold text-white">
+          {filtered ? 'No matching references' : 'No links saved yet'}
+        </h2>
+        {filtered ? <p className="mt-1 text-sm text-zinc-400">검색어나 필터를 바꿔 보세요.</p> : null}
       </div>
     </div>
   )

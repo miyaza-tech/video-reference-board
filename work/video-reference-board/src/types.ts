@@ -4,8 +4,6 @@ export type SortMode = 'newest' | 'oldest' | 'title' | 'platform'
 
 export type FavoriteMode = 'all' | 'favorites'
 
-export type EmbedKind = 'iframe' | 'none'
-
 export interface BoardItem {
   id: string
   url: string
@@ -14,8 +12,6 @@ export interface BoardItem {
   description: string
   author: string
   imageUrl: string
-  embedHtml?: string
-  embedKind: EmbedKind
   tags: string[]
   favorite: boolean
   savedAt: string
