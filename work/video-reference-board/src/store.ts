@@ -156,6 +156,7 @@ interface BoardState {
   removeItem: (id: string) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
   updateItem: (id: string, patch: Partial<Pick<BoardItem, 'title' | 'author' | 'description' | 'tags' | 'imageUrl'>>) => Promise<void>
+  removeTag: (tag: string) => Promise<void>
   importItems: (raw: unknown) => Promise<void>
   setSearch: (search: string) => void
   setPlatform: (platform: 'all' | Platform) => void
@@ -238,6 +239,34 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     if (!uid) return
     await updateDoc(itemDoc(uid, id), patch)
     set({ items: get().items.map((item) => (item.id === id ? { ...item, ...patch } : item)) })
+  },
+  // 태그를 쓰는 모든 항목에서 그 태그를 뺍니다. 마지막 항목에서 빠지면
+  // 태그 목록(items에서 파생)에서도 자동으로 사라집니다.
+  removeTag: async (tag) => {
+    const { uid } = get()
+    if (!uid) return
+    const affected = get().items.filter((item) => item.tags.includes(tag))
+    if (affected.length === 0) return
+    const nextTags = new Map(affected.map((item) => [item.id, item.tags.filter((t) => t !== tag)]))
+    const chunkSize = 20
+    let failed = 0
+    const saved = new Set<string>()
+    for (let i = 0; i < affected.length; i += chunkSize) {
+      const chunk = affected.slice(i, i + chunkSize)
+      // 한 항목이 실패해도 나머지는 계속 지웁니다.
+      const results = await Promise.allSettled(
+        chunk.map((item) => updateDoc(itemDoc(uid, item.id), { tags: nextTags.get(item.id) })),
+      )
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') saved.add(chunk[index].id)
+        else failed += 1
+      })
+    }
+    // 저장에 성공한 항목만 화면에 반영해 Firestore와 어긋나지 않게 합니다.
+    set({
+      items: get().items.map((item) => (saved.has(item.id) ? { ...item, tags: nextTags.get(item.id)! } : item)),
+      error: failed > 0 ? `${failed}개 항목에서 태그를 지우지 못했습니다.` : '',
+    })
   },
   importItems: async (raw) => {
     const { uid } = get()

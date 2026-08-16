@@ -143,6 +143,58 @@ function useThumbnailPicker() {
   return { imageUrl, name, uploading, error, inputRef, pick, reset }
 }
 
+// 클릭하면 Tags 입력창에 태그를 채워 넣는 버튼 묶음입니다.
+// label은 두 묶음(프리셋 / 내 태그)이 함께 보일 때만 붙입니다.
+// onDelete를 주면 태그마다 삭제(×) 버튼이 붙습니다.
+function TagPickRow({
+  label,
+  tags,
+  onPick,
+  onDelete,
+}: {
+  label?: string
+  tags: string[]
+  onPick: (tag: string) => void
+  onDelete?: (tag: string) => void
+}) {
+  if (tags.length === 0) return null
+  return (
+    <div className="flex flex-col gap-2">
+      {label ? <span className="text-[11px] font-bold text-zinc-500">{label}</span> : null}
+      <div className="flex flex-wrap gap-2">
+        {tags.map((tag) =>
+          onDelete ? (
+            // 버튼 중첩은 안 되므로 span으로 감싸고 안에 버튼 두 개를 둡니다.
+            // (.tag-preset은 레이어 밖 CSS라 유틸리티로 못 덮으므로 여기선 쓰지 않습니다.)
+            <span key={tag} className="inline-flex items-center overflow-hidden rounded-md border border-white/10 bg-white/[0.08]">
+              <button
+                type="button"
+                className="flex min-h-[30px] items-center pr-1.5 pl-2.5 text-xs font-semibold text-zinc-100 transition hover:bg-white/10"
+                onClick={() => onPick(tag)}
+              >
+                #{tag}
+              </button>
+              <button
+                type="button"
+                className="flex min-h-[30px] items-center pr-2 pl-0.5 text-zinc-500 transition hover:bg-white/10 hover:text-red-300"
+                title={`#${tag} 태그 떼기 (게시물은 유지)`}
+                aria-label={`${tag} 태그 떼기`}
+                onClick={() => onDelete(tag)}
+              >
+                <XIcon size={13} />
+              </button>
+            </span>
+          ) : (
+            <button key={tag} type="button" className="tag-preset" onClick={() => onPick(tag)}>
+              #{tag}
+            </button>
+          ),
+        )}
+      </div>
+    </div>
+  )
+}
+
 // 섬네일 선택 버튼 + 숨은 file input + 에러 표시를 묶은 공용 UI입니다.
 function ThumbnailField({ picker, label }: { picker: ReturnType<typeof useThumbnailPicker>; label: string }) {
   const { inputRef, uploading, name, error, pick } = picker
@@ -177,6 +229,7 @@ function App() {
     removeItem,
     toggleFavorite,
     updateItem,
+    removeTag,
     importItems,
     setPlatform,
     setFavoriteMode,
@@ -287,6 +340,20 @@ function App() {
     setActiveTag(null)
     setPlatform('all')
     setFavoriteMode('all')
+  }
+
+  function pickTag(tag: string) {
+    setTagText((current) => addTagToText(current, tag))
+  }
+
+  // 커스텀 태그 삭제. 게시물은 그대로 두고 tags 배열에서만 뺍니다.
+  // 여러 항목을 한 번에 고치므로 개수를 보여주고 확인받습니다.
+  async function deleteTag(tag: string) {
+    const count = tagCounts.get(tag) ?? 0
+    if (!window.confirm(`#${tag} 태그를 ${count}개 게시물에서 뗍니다.\n게시물 자체는 지워지지 않습니다.\n\n계속할까요?`)) return
+    if (activeTag === tag) setActiveTag(null)
+    setTagText((current) => parseTags(current).filter((t) => t !== tag).join(', '))
+    await removeTag(tag)
   }
 
   function renderTag(tag: string) {
@@ -463,7 +530,7 @@ function App() {
           </button>
         </div>
 
-        <form className="flex flex-col gap-4 p-5" onSubmit={handleSubmit}>
+        <form className="flex flex-col gap-4 overflow-y-auto p-5" onSubmit={handleSubmit}>
           <label className="drawer-field">
             <span>URL</span>
             <div className="input-shell">
@@ -486,12 +553,10 @@ function App() {
             </div>
           </label>
 
-          <div className="flex flex-wrap gap-2">
-            {presetTags.map((tag) => (
-              <button key={tag} type="button" className="tag-preset" onClick={() => setTagText((current) => addTagToText(current, tag))}>
-                #{tag}
-              </button>
-            ))}
+          {/* 프리셋 + 보드에서 이미 쓰고 있는 커스텀 태그. 새 태그는 위 입력창에 직접 적습니다. */}
+          <div className="flex flex-col gap-3">
+            <TagPickRow label={otherTags.length > 0 ? '프리셋' : undefined} tags={presetTags} onPick={pickTag} />
+            <TagPickRow label="내 태그" tags={otherTags} onPick={pickTag} onDelete={(tag) => void deleteTag(tag)} />
           </div>
 
           <ThumbnailField picker={thumbnail} label="Thumbnail" />
