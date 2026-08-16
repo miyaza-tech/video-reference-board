@@ -177,8 +177,8 @@ function TagPickRow({
               <button
                 type="button"
                 className="flex min-h-[30px] items-center pr-2 pl-0.5 text-zinc-500 transition hover:bg-white/10 hover:text-red-300"
-                title={`#${tag} 태그 떼기 (게시물은 유지)`}
-                aria-label={`${tag} 태그 떼기`}
+                title={`#${tag} 태그 지우기 (이 태그뿐인 게시물은 함께 삭제)`}
+                aria-label={`${tag} 태그 지우기`}
                 onClick={() => onDelete(tag)}
               >
                 <XIcon size={13} />
@@ -346,11 +346,23 @@ function App() {
     setTagText((current) => addTagToText(current, tag))
   }
 
-  // 커스텀 태그 삭제. 게시물은 그대로 두고 tags 배열에서만 뺍니다.
-  // 여러 항목을 한 번에 고치므로 개수를 보여주고 확인받습니다.
+  // 커스텀 태그 삭제. 다른 태그가 남는 게시물은 태그만 떼고,
+  // 이 태그뿐이라 남는 태그가 없는 게시물은 함께 삭제합니다.
+  // 되돌릴 수 없으므로 두 개수를 나눠 보여주고 확인받습니다.
   async function deleteTag(tag: string) {
-    const count = tagCounts.get(tag) ?? 0
-    if (!window.confirm(`#${tag} 태그를 ${count}개 게시물에서 뗍니다.\n게시물 자체는 지워지지 않습니다.\n\n계속할까요?`)) return
+    const affected = items.filter((item) => item.tags.includes(tag))
+    if (affected.length === 0) return
+    const deleted = affected.filter((item) => item.tags.length === 1).length
+    const kept = affected.length - deleted
+    const message = [
+      `#${tag} 태그를 지웁니다.`,
+      '',
+      `· 태그만 떼기: ${kept}개 (다른 태그가 남아 있음)`,
+      `· 게시물 삭제: ${deleted}개 (남는 태그가 없음)`,
+      '',
+      '삭제한 게시물은 되돌릴 수 없습니다. 계속할까요?',
+    ].join('\n')
+    if (!window.confirm(message)) return
     if (activeTag === tag) setActiveTag(null)
     setTagText((current) => parseTags(current).filter((t) => t !== tag).join(', '))
     await removeTag(tag)
