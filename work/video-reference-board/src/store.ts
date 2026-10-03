@@ -10,7 +10,7 @@ import {
 import { ref, uploadString, getDownloadURL } from 'firebase/storage'
 import { firestore, storage } from './firebase'
 import { createBoardItem, deriveHandle, normalizeUrl } from './metadata'
-import type { BoardItem, FavoriteMode, NewItemInput, Platform, SortMode } from './types'
+import type { BoardItem, FavoriteMode, NewItemInput, Platform } from './types'
 
 const VALID_PLATFORMS: Platform[] = ['x', 'instagram', 'threads', 'linkedin', 'facebook']
 
@@ -144,10 +144,8 @@ async function migrateAuthors(
 interface BoardState {
   uid: string | null
   items: BoardItem[]
-  search: string
   platform: 'all' | Platform
   favoriteMode: FavoriteMode
-  sortMode: SortMode
   loading: boolean
   error: string
   setUid: (uid: string | null) => Promise<void>
@@ -158,10 +156,8 @@ interface BoardState {
   updateItem: (id: string, patch: Partial<Pick<BoardItem, 'title' | 'author' | 'description' | 'tags' | 'imageUrl'>>) => Promise<void>
   removeTag: (tag: string) => Promise<void>
   importItems: (raw: unknown) => Promise<void>
-  setSearch: (search: string) => void
   setPlatform: (platform: 'all' | Platform) => void
   setFavoriteMode: (mode: FavoriteMode) => void
-  setSortMode: (mode: SortMode) => void
   clearError: () => void
 }
 
@@ -176,10 +172,8 @@ function itemDoc(uid: string, id: string) {
 export const useBoardStore = create<BoardState>((set, get) => ({
   uid: null,
   items: [],
-  search: '',
   platform: 'all',
   favoriteMode: 'all',
-  sortMode: 'newest',
   loading: false,
   error: '',
   setUid: async (uid) => {
@@ -299,9 +293,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       set({ error: err instanceof Error ? err.message : '가져오기에 실패했습니다.', loading: false })
     }
   },
-  setSearch: (search) => set({ search }),
   setPlatform: (platform) => set({ platform }),
   setFavoriteMode: (favoriteMode) => set({ favoriteMode }),
-  setSortMode: (sortMode) => set({ sortMode }),
   clearError: () => set({ error: '' }),
 }))

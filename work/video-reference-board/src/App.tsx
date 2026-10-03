@@ -6,10 +6,10 @@ import {
   ImagePlus,
   Import,
   Link,
+  ListFilter,
   LogOut,
   Pencil,
   Plus,
-  Search,
   Tag,
   Trash2,
   X as XIcon,
@@ -19,7 +19,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, googleProvider, storage } from './firebase'
 import { getPlatformLabel } from './metadata'
 import { useBoardStore } from './store'
-import type { BoardItem, Platform, SortMode } from './types'
+import type { BoardItem, Platform } from './types'
 import './index.css'
 
 const platforms: Array<'all' | Platform> = ['all', 'x', 'instagram', 'threads', 'linkedin', 'facebook']
@@ -30,38 +30,15 @@ const purposeTags = ['Prompt', 'Tutorial']
 
 const masonryBreakpoints = {
   default: 6,
-  1800: 5,
-  1400: 4,
-  1000: 3,
+  2040: 5,
+  1640: 4,
+  1340: 3,
   720: 2,
   460: 1,
 }
 
-const sortLabels: Record<SortMode, string> = {
-  newest: '최신순',
-  oldest: '오래된순',
-  title: '제목순',
-  platform: '플랫폼순',
-}
-
-const sorters: Record<SortMode, (a: BoardItem, b: BoardItem) => number> = {
-  newest: (a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt),
-  oldest: (a, b) => Date.parse(a.savedAt) - Date.parse(b.savedAt),
-  title: (a, b) => a.title.localeCompare(b.title, 'ko'),
-  // 같은 플랫폼끼리 묶고, 그 안에서는 최신순으로 둡니다.
-  platform: (a, b) => a.platform.localeCompare(b.platform) || Date.parse(b.savedAt) - Date.parse(a.savedAt),
-}
-
-// 검색어는 제목·작성자·설명·태그·URL 전체에서 찾습니다.
-function matchesQuery(item: BoardItem, query: string) {
-  return (
-    item.title.toLowerCase().includes(query) ||
-    item.author.toLowerCase().includes(query) ||
-    item.description.toLowerCase().includes(query) ||
-    item.url.toLowerCase().includes(query) ||
-    item.tags.some((tag) => tag.toLowerCase().includes(query))
-  )
-}
+// 보드는 항상 최신순으로 봅니다.
+const byNewest = (a: BoardItem, b: BoardItem) => Date.parse(b.savedAt) - Date.parse(a.savedAt)
 
 function parseTags(value: string) {
   return value
@@ -220,8 +197,6 @@ function App() {
     items,
     platform,
     favoriteMode,
-    search,
-    sortMode,
     loading,
     error,
     setUid,
@@ -233,8 +208,6 @@ function App() {
     importItems,
     setPlatform,
     setFavoriteMode,
-    setSearch,
-    setSortMode,
     clearError,
   } = useBoardStore()
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -243,6 +216,7 @@ function App() {
   const [tagText, setTagText] = useState('')
   const [editingItem, setEditingItem] = useState<BoardItem | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -257,15 +231,13 @@ function App() {
   }, [setUid])
 
   const visibleItems = useMemo(() => {
-    const query = search.trim().toLowerCase()
     return items
       .filter((item) => platform === 'all' || item.platform === platform)
       .filter((item) => favoriteMode === 'all' || item.favorite)
       .filter((item) => !activeTag || item.tags.includes(activeTag))
       .filter((item) => !activeAuthor || item.author === activeAuthor)
-      .filter((item) => !query || matchesQuery(item, query))
-      .sort(sorters[sortMode])
-  }, [activeAuthor, activeTag, favoriteMode, items, platform, search, sortMode])
+      .sort(byNewest)
+  }, [activeAuthor, activeTag, favoriteMode, items, platform])
 
   const allTags = useMemo(
     () => Array.from(new Set([...presetTags, ...items.flatMap((item) => item.tags)])).sort(),
@@ -303,6 +275,7 @@ function App() {
   const noFilter = platform === 'all' && !activeTag && !activeAuthor && favoriteMode === 'all'
 
   function selectTag(tag: string) {
+    setIsFilterOpen(false)
     if (activeTag === tag) {
       setActiveTag(null)
       return
@@ -314,6 +287,7 @@ function App() {
   }
 
   function selectPlatform(option: 'all' | Platform) {
+    setIsFilterOpen(false)
     setPlatform(option)
     setActiveTag(null)
     setActiveAuthor(null)
@@ -321,6 +295,7 @@ function App() {
   }
 
   function toggleFavorites() {
+    setIsFilterOpen(false)
     if (favoriteMode === 'favorites') {
       setFavoriteMode('all')
       return
@@ -373,10 +348,10 @@ function App() {
       <button
         key={tag}
         type="button"
-        className={`filter-tag ${activeTag === tag ? 'filter-tag-active' : ''}`}
+        className={`sidebar-row ${activeTag === tag ? 'sidebar-row-active' : ''}`}
         onClick={() => selectTag(tag)}
       >
-        #{tag}
+        <span className="sidebar-row-label">#{tag}</span>
         <span className="filter-count">{tagCounts.get(tag) ?? 0}</span>
       </button>
     )
@@ -424,114 +399,144 @@ function App() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
-      <section className="sticky top-0 z-30 border-b border-white/10 bg-zinc-950/92 backdrop-blur">
-        <div className="mx-auto flex max-w-[1880px] flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="order-2 flex flex-wrap items-center gap-x-3 gap-y-2 sm:order-1">
-              {/* 좋아요 */}
-              <button
-                className={`chip ${favoriteMode === 'favorites' ? 'chip-active' : ''}`}
-                type="button"
-                title="좋아요"
-                onClick={toggleFavorites}
-              >
-                <Heart size={15} fill={favoriteMode === 'favorites' ? 'currentColor' : 'none'} />
-              </button>
+      <div className="lg:flex">
+        {/* 모바일에서 필터 시트를 열었을 때 뒤를 덮습니다. */}
+        <div
+          className={`drawer-overlay hide-at-lg ${isFilterOpen ? 'open' : ''}`}
+          onClick={() => setIsFilterOpen(false)}
+        />
 
-              {/* 활성 작성자 필터 (카드의 @아이디 클릭 시) */}
-              {activeAuthor ? (
-                <button
-                  className="chip chip-active"
-                  type="button"
-                  title="작성자 필터 해제"
-                  onClick={() => setActiveAuthor(null)}
-                >
-                  {activeAuthor}
-                  <XIcon size={14} />
-                </button>
-              ) : null}
-
-              {/* 출처: 플랫폼 */}
-              <div className="filter-group">
-                {platforms.map((option) => {
-                  const active = option === 'all' ? noFilter : platform === option
-                  return (
-                    <button
-                      key={option}
-                      className={`chip ${active ? 'chip-active' : ''}`}
-                      type="button"
-                      onClick={() => selectPlatform(option)}
-                    >
-                      {option === 'all' ? 'All' : getPlatformLabel(option)}
-                      <span className="filter-count">{platformCounts.get(option) ?? 0}</span>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* 종류 */}
-              <div className="filter-group">{typeTags.map(renderTag)}</div>
-
-              {/* 프롬프트 / 튜토리얼 */}
-              <div className="filter-group">{purposeTags.map(renderTag)}</div>
-
-              {/* 기타 커스텀 태그 */}
-              {otherTags.length > 0 ? <div className="filter-group">{otherTags.map(renderTag)}</div> : null}
-            </div>
-            <div className="order-1 flex flex-wrap items-center gap-2 sm:order-2 sm:shrink-0">
-              <div className="input-shell w-full min-h-9 sm:w-52">
-                <Search size={16} className="shrink-0 text-zinc-500" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="검색"
-                  className="field text-sm"
-                  aria-label="검색"
-                />
-                {search ? (
-                  <button type="button" className="shrink-0 text-zinc-500 hover:text-zinc-200" title="검색어 지우기" onClick={() => setSearch('')}>
-                    <XIcon size={15} />
-                  </button>
-                ) : null}
-              </div>
-              <select
-                className="select"
-                value={sortMode}
-                onChange={(event) => setSortMode(event.target.value as SortMode)}
-                aria-label="정렬"
-              >
-                {(Object.keys(sortLabels) as SortMode[]).map((mode) => (
-                  <option key={mode} value={mode}>
-                    {sortLabels[mode]}
-                  </option>
-                ))}
-              </select>
-              <button className="chip" type="button" onClick={exportJson}>
-                <Download size={15} />
-                Export
-              </button>
-              <button className="chip" type="button" onClick={() => fileInputRef.current?.click()}>
-                <Import size={15} />
-                Import
-              </button>
-              <input ref={fileInputRef} className="hidden" type="file" accept="application/json" onChange={handleImport} />
-              <button className="add-button" type="button" onClick={() => setIsDrawerOpen(true)}>
-                <Plus size={17} />
-                Add
-              </button>
-              <button className="chip ml-auto sm:ml-0" type="button" onClick={() => void signOut(auth)} title={user.email ?? 'Sign out'}>
-                <LogOut size={15} />
-              </button>
-            </div>
+        {/* 필터 사이드바. lg 이상에서는 왼쪽에 고정되고, 그 아래에서는 오프캔버스로 열립니다. */}
+        <aside className={`sidebar ${isFilterOpen ? 'open' : ''}`} aria-label="필터">
+          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 lg:hidden">
+            <h2 className="text-sm font-semibold text-white">필터</h2>
+            <button className="icon-button h-8 w-8" type="button" onClick={() => setIsFilterOpen(false)} title="닫기">
+              <XIcon size={16} />
+            </button>
           </div>
 
-          {error ? (
-            <button className="rounded-md border border-red-400/30 bg-red-950/50 px-3 py-2 text-left text-sm text-red-100" onClick={clearError}>
-              {error}
+          <div className="sidebar-scroll">
+            {/* 좋아요 */}
+            <button
+              className={`sidebar-row ${favoriteMode === 'favorites' ? 'sidebar-row-active' : ''}`}
+              type="button"
+              onClick={toggleFavorites}
+            >
+              <Heart size={15} fill={favoriteMode === 'favorites' ? 'currentColor' : 'none'} />
+              <span className="sidebar-row-label">좋아요</span>
             </button>
-          ) : null}
+
+            {/* 활성 작성자 필터 (카드의 @아이디 클릭 시) */}
+            {activeAuthor ? (
+              <button
+                className="sidebar-row sidebar-row-active"
+                type="button"
+                title="작성자 필터 해제"
+                onClick={() => setActiveAuthor(null)}
+              >
+                <span className="sidebar-row-label">{activeAuthor}</span>
+                <XIcon size={14} />
+              </button>
+            ) : null}
+
+            {/* 출처: 플랫폼 */}
+            <p className="sidebar-section">출처</p>
+            {platforms.map((option) => {
+              const active = option === 'all' ? noFilter : platform === option
+              return (
+                <button
+                  key={option}
+                  className={`sidebar-row ${active ? 'sidebar-row-active' : ''}`}
+                  type="button"
+                  onClick={() => selectPlatform(option)}
+                >
+                  <span className="sidebar-row-label">{option === 'all' ? 'All' : getPlatformLabel(option)}</span>
+                  <span className="filter-count">{platformCounts.get(option) ?? 0}</span>
+                </button>
+              )
+            })}
+
+            {/* 종류 */}
+            <p className="sidebar-section">종류</p>
+            {typeTags.map(renderTag)}
+
+            {/* 프롬프트 / 튜토리얼 */}
+            <p className="sidebar-section">프롬프트 / 튜토리얼</p>
+            {purposeTags.map(renderTag)}
+
+            {/* 기타 커스텀 태그 */}
+            {otherTags.length > 0 ? (
+              <>
+                <p className="sidebar-section">내 태그</p>
+                {otherTags.map(renderTag)}
+              </>
+            ) : null}
+          </div>
+        </aside>
+
+        <div className="min-w-0 flex-1">
+          <section className="sticky top-0 z-30 border-b border-white/10 bg-zinc-950/92 backdrop-blur">
+            <div className="mx-auto flex max-w-[1880px] flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* 사이드바가 접히는 폭에서만 보이는 토글. 필터가 걸려 있으면 강조합니다. */}
+                <button
+                  className={`chip hide-at-lg ${noFilter ? '' : 'chip-active'}`}
+                  type="button"
+                  onClick={() => setIsFilterOpen(true)}
+                >
+                  <ListFilter size={15} />
+                  필터
+                </button>
+
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  {/* 좁은 폭에서는 라벨을 숨기고 아이콘만 남깁니다. */}
+                  <button className="chip" type="button" onClick={exportJson} title="Export">
+                    <Download size={15} />
+                    <span className="hidden sm:inline">Export</span>
+                  </button>
+                  <button className="chip" type="button" onClick={() => fileInputRef.current?.click()} title="Import">
+                    <Import size={15} />
+                    <span className="hidden sm:inline">Import</span>
+                  </button>
+                  <input ref={fileInputRef} className="hidden" type="file" accept="application/json" onChange={handleImport} />
+                  <button className="add-button" type="button" onClick={() => setIsDrawerOpen(true)}>
+                    <Plus size={17} />
+                    Add
+                  </button>
+                  <button className="chip" type="button" onClick={() => void signOut(auth)} title={user.email ?? 'Sign out'}>
+                    <LogOut size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {error ? (
+                <button className="rounded-md border border-red-400/30 bg-red-950/50 px-3 py-2 text-left text-sm text-red-100" onClick={clearError}>
+                  {error}
+                </button>
+              ) : null}
+            </div>
+          </section>
+
+          <section className="mx-auto max-w-[1880px] px-4 py-6 sm:px-6 lg:px-8">
+            {visibleItems.length === 0 ? (
+              <EmptyState filtered={items.length > 0} />
+            ) : (
+              <Masonry breakpointCols={masonryBreakpoints} className="masonry-grid" columnClassName="masonry-column">
+                {visibleItems.map((item) => (
+                  <VideoCard
+                    key={item.id}
+                    item={item}
+                    onFavorite={() => void toggleFavorite(item.id)}
+                    onRemove={() => void removeItem(item.id)}
+                    onEdit={() => setEditingItem(item)}
+                    onSelectAuthor={selectAuthor}
+                  />
+                ))}
+              </Masonry>
+            )}
+          </section>
         </div>
-      </section>
+      </div>
 
       <div className={`drawer-overlay ${isDrawerOpen ? 'open' : ''}`} onClick={() => setIsDrawerOpen(false)} />
       <aside className={`drawer ${isDrawerOpen ? 'open' : ''}`} aria-hidden={!isDrawerOpen}>
@@ -580,25 +585,6 @@ function App() {
 
         <div className="mt-auto border-t border-white/10" />
       </aside>
-
-      <section className="mx-auto max-w-[1880px] px-4 py-6 sm:px-6 lg:px-8">
-        {visibleItems.length === 0 ? (
-          <EmptyState filtered={items.length > 0} />
-        ) : (
-          <Masonry breakpointCols={masonryBreakpoints} className="masonry-grid" columnClassName="masonry-column">
-            {visibleItems.map((item) => (
-              <VideoCard
-                key={item.id}
-                item={item}
-                onFavorite={() => void toggleFavorite(item.id)}
-                onRemove={() => void removeItem(item.id)}
-                onEdit={() => setEditingItem(item)}
-                onSelectAuthor={selectAuthor}
-              />
-            ))}
-          </Masonry>
-        )}
-      </section>
 
       {editingItem ? (
         <EditModal
@@ -787,18 +773,18 @@ function EditModal({
   )
 }
 
-// filtered=true면 저장된 항목은 있는데 현재 검색·필터에 걸리는 게 없는 상태입니다.
+// filtered=true면 저장된 항목은 있는데 현재 필터에 걸리는 게 없는 상태입니다.
 function EmptyState({ filtered }: { filtered: boolean }) {
   return (
     <div className="grid min-h-[52vh] place-items-center rounded-lg border border-dashed border-white/15 bg-zinc-900/40 px-6 text-center">
       <div className="max-w-md">
         <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-lg bg-white text-zinc-950">
-          {filtered ? <Search size={22} /> : <Link size={22} />}
+          {filtered ? <ListFilter size={22} /> : <Link size={22} />}
         </div>
         <h2 className="text-lg font-semibold text-white">
           {filtered ? 'No matching references' : 'No links saved yet'}
         </h2>
-        {filtered ? <p className="mt-1 text-sm text-zinc-400">검색어나 필터를 바꿔 보세요.</p> : null}
+        {filtered ? <p className="mt-1 text-sm text-zinc-400">왼쪽에서 다른 필터를 골라 보세요.</p> : null}
       </div>
     </div>
   )

@@ -19,8 +19,7 @@ body {
 }
 
 button,
-input,
-select {
+input {
   font: inherit;
 }
 
@@ -123,8 +122,7 @@ select {
 }
 
 .icon-button:hover,
-.chip:hover,
-.select:hover {
+.chip:hover {
   border-color: rgb(255 255 255 / 0.24);
   background: rgb(63 63 70);
 }
@@ -148,54 +146,95 @@ select {
   color: #09090b;
 }
 
-.select {
-  min-height: 36px;
-  border-radius: 8px;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  background: rgb(39 39 42 / 0.86);
-  padding: 0 12px;
-  font-size: 13px;
-  color: rgb(212 212 216);
-  outline: none;
-}
-
-/* 드롭다운 목록은 OS 기본값(밝은 배경)을 따르므로 직접 어둡게 맞춥니다. */
-.select option {
-  background: #18181b;
-  color: rgb(228 228 231);
-}
-
-/* 필터 그룹: 버튼 묶음이 통째로 줄바꿈되고, 왼쪽 구분선이 그룹을 따라다닙니다. */
-.filter-group {
+/* 왼쪽 필터 사이드바.
+   태그는 사용자가 계속 추가하므로 세로로 쌓아 스크롤로 흡수합니다.
+   모바일에서는 오프캔버스로 밀려 나오고, lg 이상에서는 왼쪽에 붙어 고정됩니다. */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
   display: flex;
-  flex-wrap: wrap;
+  height: 100vh;
+  width: min(272px, 84vw);
+  flex-direction: column;
+  border-right: 1px solid rgb(255 255 255 / 0.1);
+  background: #111113;
+  box-shadow: 24px 0 60px rgb(0 0 0 / 0.38);
+  transform: translateX(-100%);
+  transition: transform 180ms ease;
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+@media (min-width: 1024px) {
+  .sidebar {
+    position: sticky;
+    z-index: 20;
+    width: 232px;
+    flex: none;
+    align-self: flex-start;
+    background: rgb(9 9 11 / 0.92);
+    box-shadow: none;
+    transform: none;
+  }
+}
+
+.sidebar-scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+  padding: 14px 12px 24px;
+}
+
+.sidebar-section {
+  margin: 16px 0 5px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgb(113 113 122);
+  text-transform: uppercase;
+}
+
+.sidebar-scroll > .sidebar-section:first-child {
+  margin-top: 0;
+}
+
+/* 필터 한 줄. 라벨은 왼쪽, 개수는 오른쪽 끝에 붙습니다. */
+.sidebar-row {
+  display: flex;
+  min-height: 34px;
+  width: 100%;
   align-items: center;
   gap: 8px;
-  padding-left: 12px;
-  border-left: 1px solid rgb(255 255 255 / 0.12);
-}
-
-.filter-tag {
-  display: inline-flex;
-  min-height: 36px;
-  align-items: center;
   border-radius: 8px;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  background: rgb(255 255 255 / 0.06);
-  padding: 0 11px;
+  padding: 0 10px;
   font-size: 13px;
   color: rgb(212 212 216);
+  text-align: left;
 }
 
-.filter-tag:hover {
-  border-color: rgb(255 255 255 / 0.24);
-  background: rgb(63 63 70);
+.sidebar-row:hover {
+  background: rgb(63 63 70 / 0.7);
 }
 
-.filter-tag-active {
-  border-color: white;
+.sidebar-row-active,
+.sidebar-row-active:hover {
   background: white;
   color: #09090b;
+}
+
+.sidebar-row-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .filter-count {
@@ -329,4 +368,13 @@ select {
   background: #111113;
   box-shadow: 0 24px 60px rgb(0 0 0 / 0.6);
   transform: translate(-50%, -50%);
+}
+
+/* index.css의 커스텀 클래스는 레이어 밖이라 Tailwind 유틸리티(@layer utilities)보다
+   항상 우선합니다. 그래서 .chip 같은 클래스가 붙은 요소는 lg:hidden으로 숨겨지지 않습니다.
+   사이드바가 펼쳐지는 폭에서 감춰야 하는 요소는 이 클래스를 씁니다. */
+@media (min-width: 1024px) {
+  .hide-at-lg {
+    display: none;
+  }
 }

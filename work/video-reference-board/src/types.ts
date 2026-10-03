@@ -1,7 +1,5 @@
 export type Platform = 'x' | 'instagram' | 'threads' | 'linkedin' | 'facebook'
 
-export type SortMode = 'newest' | 'oldest' | 'title' | 'platform'
-
 export type FavoriteMode = 'all' | 'favorites'
 
 export interface BoardItem {
