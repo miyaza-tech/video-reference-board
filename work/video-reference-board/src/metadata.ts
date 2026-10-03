@@ -57,7 +57,6 @@ export async function createBoardItem(input: NewItemInput): Promise<BoardItem> {
     url: normalizedUrl,
     platform,
     title: embedded?.title || fallback.title,
-    description: fallback.description,
     // URL에서 아이디(@handle)를 뽑을 수 있으면 그걸 우선합니다.
     // (X oEmbed는 아이디가 아닌 표시 이름을 주므로 아이디가 있으면 그게 낫습니다.)
     author: fallback.author.startsWith('@') ? fallback.author : embedded?.author_name || fallback.author,
@@ -122,7 +121,6 @@ function getFallbackMetadata(url: string, platform: Platform) {
   return {
     title,
     author,
-    description: `${parsed.hostname}${parsed.pathname}`,
     imageUrl: FALLBACK_IMAGES[platform],
   }
 }

@@ -43,7 +43,6 @@ function validateAndSanitize(raw: unknown): BoardItem[] {
       url: r.url as string,
       platform: r.platform as Platform,
       title: r.title as string,
-      description: typeof r.description === 'string' ? r.description : '',
       author: typeof r.author === 'string' ? r.author : '',
       imageUrl: typeof r.imageUrl === 'string' ? r.imageUrl : '',
       tags: Array.isArray(r.tags) ? (r.tags as unknown[]).filter((t): t is string => typeof t === 'string') : [],
@@ -166,7 +165,7 @@ interface BoardState {
   addItem: (input: NewItemInput) => Promise<void>
   removeItem: (id: string) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
-  updateItem: (id: string, patch: Partial<Pick<BoardItem, 'url' | 'title' | 'author' | 'description' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
+  updateItem: (id: string, patch: Partial<Pick<BoardItem, 'url' | 'title' | 'author' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
   removeTag: (tag: string) => Promise<void>
   importItems: (raw: unknown) => Promise<void>
   setPlatform: (platform: 'all' | Platform) => void

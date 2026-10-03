@@ -702,12 +702,11 @@ function EditModal({
 }: {
   item: BoardItem
   onClose: () => void
-  onSave: (patch: Partial<Pick<BoardItem, 'url' | 'title' | 'author' | 'description' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
+  onSave: (patch: Partial<Pick<BoardItem, 'url' | 'title' | 'author' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
 }) {
   const [url, setUrl] = useState(item.url)
   const [title, setTitle] = useState(item.title)
   const [author, setAuthor] = useState(item.author)
-  const [description, setDescription] = useState(item.description)
   const [note, setNote] = useState(item.note ?? '')
   const [tagText, setTagText] = useState(item.tags.join(', '))
   const [saving, setSaving] = useState(false)
@@ -728,7 +727,6 @@ function EditModal({
       url: url.trim() || item.url,
       title: title.trim() || item.title,
       author: author.trim(),
-      description: description.trim(),
       note: note.trim(),
       tags: parseTags(tagText),
       ...(thumbnail.imageUrl ? { imageUrl: thumbnail.imageUrl } : {}),
@@ -767,13 +765,6 @@ function EditModal({
             <span>Author</span>
             <div className="input-shell">
               <input value={author} onChange={(e) => setAuthor(e.target.value)} className="field" />
-            </div>
-          </label>
-
-          <label className="drawer-field">
-            <span>Description</span>
-            <div className="input-shell">
-              <input value={description} onChange={(e) => setDescription(e.target.value)} className="field" />
             </div>
           </label>
 
