@@ -24,9 +24,8 @@ import type { BoardItem, Platform } from './types'
 import './index.css'
 
 const platforms: Array<'all' | Platform> = ['all', 'x', 'instagram', 'threads', 'linkedin', 'facebook']
-const presetTags = ['real', '3D', '2D', 'Tutorial', 'Original', 'Prompt']
-// 필터바 태그 그룹. 종류(Type)와 프롬프트/튜토리얼로 나눕니다.
-const typeTags = ['real', '3D', '2D', 'Original']
+const presetTags = ['Prompt', 'Tutorial']
+// 필터바 태그 그룹. 나머지는 전부 사용자가 만든 태그로 묶입니다.
 const purposeTags = ['Prompt', 'Tutorial']
 
 const masonryBreakpoints = {
@@ -246,11 +245,8 @@ function App() {
     [items],
   )
 
-  // 정해진 그룹(종류·프롬프트/튜토리얼)에 속하지 않는 커스텀 태그
-  const otherTags = useMemo(
-    () => allTags.filter((tag) => !typeTags.includes(tag) && !purposeTags.includes(tag)),
-    [allTags],
-  )
+  // 정해진 그룹(프롬프트/튜토리얼)에 속하지 않는 커스텀 태그
+  const otherTags = useMemo(() => allTags.filter((tag) => !purposeTags.includes(tag)), [allTags])
 
   // 태그별 게시물 수
   const tagCounts = useMemo(() => {
@@ -458,10 +454,6 @@ function App() {
                 </button>
               )
             })}
-
-            {/* 종류 */}
-            <p className="sidebar-section">종류</p>
-            {typeTags.map(renderTag)}
 
             {/* 프롬프트 / 튜토리얼 */}
             <p className="sidebar-section">프롬프트 / 튜토리얼</p>
