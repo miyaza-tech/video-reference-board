@@ -8,6 +8,7 @@ import {
   Link,
   ListFilter,
   LogOut,
+  MessageSquare,
   Pencil,
   Plus,
   Tag,
@@ -214,6 +215,7 @@ function App() {
   const [activeAuthor, setActiveAuthor] = useState<string | null>(null)
   const [url, setUrl] = useState('')
   const [tagText, setTagText] = useState('')
+  const [note, setNote] = useState('')
   const [editingItem, setEditingItem] = useState<BoardItem | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
@@ -362,10 +364,11 @@ function App() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    await addItem({ url, tags: parseTags(tagText), imageUrl: thumbnail.imageUrl || undefined })
+    await addItem({ url, tags: parseTags(tagText), note, imageUrl: thumbnail.imageUrl || undefined })
     if (!useBoardStore.getState().error) {
       setUrl('')
       setTagText('')
+      setNote('')
       thumbnail.reset()
       setIsDrawerOpen(false)
     }
@@ -570,6 +573,19 @@ function App() {
             </div>
           </label>
 
+          <label className="drawer-field">
+            <span>Note</span>
+            <div className="input-shell">
+              <MessageSquare size={18} className="text-zinc-500" />
+              <input
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="카드에 마우스를 올리면 보일 메모"
+                className="field"
+              />
+            </div>
+          </label>
+
           {/* 프리셋 + 보드에서 이미 쓰고 있는 커스텀 태그. 새 태그는 위 입력창에 직접 적습니다. */}
           <div className="flex flex-col gap-3">
             <TagPickRow label={otherTags.length > 0 ? '프리셋' : undefined} tags={presetTags} onPick={pickTag} />
@@ -655,6 +671,13 @@ function VideoCard({
             ))}
           </div>
         ) : null}
+        {/* 호버했을 때만 뜨는 메모. 아래쪽 액션 버튼 위에 자리를 잡습니다. */}
+        {item.note ? (
+          <div className="card-note">
+            <p>{item.note}</p>
+          </div>
+        ) : null}
+
         <div className="card-hover-actions">
           <button className="hover-action-button" type="button" onClick={onEdit} title="Edit">
             <Pencil size={15} />
@@ -678,11 +701,12 @@ function EditModal({
 }: {
   item: BoardItem
   onClose: () => void
-  onSave: (patch: Partial<Pick<BoardItem, 'title' | 'author' | 'description' | 'tags' | 'imageUrl'>>) => Promise<void>
+  onSave: (patch: Partial<Pick<BoardItem, 'title' | 'author' | 'description' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
 }) {
   const [title, setTitle] = useState(item.title)
   const [author, setAuthor] = useState(item.author)
   const [description, setDescription] = useState(item.description)
+  const [note, setNote] = useState(item.note ?? '')
   const [tagText, setTagText] = useState(item.tags.join(', '))
   const [saving, setSaving] = useState(false)
   const thumbnail = useThumbnailPicker()
@@ -702,6 +726,7 @@ function EditModal({
       title: title.trim() || item.title,
       author: author.trim(),
       description: description.trim(),
+      note: note.trim(),
       tags: parseTags(tagText),
       ...(thumbnail.imageUrl ? { imageUrl: thumbnail.imageUrl } : {}),
     })
@@ -738,6 +763,19 @@ function EditModal({
             <span>Description</span>
             <div className="input-shell">
               <input value={description} onChange={(e) => setDescription(e.target.value)} className="field" />
+            </div>
+          </label>
+
+          <label className="drawer-field">
+            <span>Note</span>
+            <div className="input-shell">
+              <MessageSquare size={18} className="text-zinc-500" />
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="카드에 마우스를 올리면 보일 메모"
+                className="field"
+              />
             </div>
           </label>
 

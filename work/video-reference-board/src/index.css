@@ -328,6 +328,41 @@ input {
   transform: translateY(0);
 }
 
+/* 카드 메모. 호버할 때만 떠오르고, 우측 하단 액션 버튼 위쪽에 자리를 잡습니다.
+   길어도 카드를 덮지 않도록 세 줄에서 자릅니다. */
+.card-note {
+  pointer-events: none;
+  position: absolute;
+  right: 12px;
+  bottom: 58px;
+  left: 12px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.group:hover .card-note {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.card-note p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  margin: 0;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.72);
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: white;
+  backdrop-filter: blur(10px);
+}
+
 .hover-action-button {
   display: grid;
   height: 38px;

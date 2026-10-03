@@ -63,6 +63,7 @@ export async function createBoardItem(input: NewItemInput): Promise<BoardItem> {
     author: fallback.author.startsWith('@') ? fallback.author : embedded?.author_name || fallback.author,
     imageUrl: input.imageUrl || embedded?.thumbnail_url || fallback.imageUrl,
     tags: input.tags,
+    note: input.note?.trim() || '',
     favorite: false,
     savedAt: new Date().toISOString(),
   }
