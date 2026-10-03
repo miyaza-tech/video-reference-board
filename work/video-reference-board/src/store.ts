@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore/lite'
 import { ref, uploadString, getDownloadURL } from 'firebase/storage'
 import { firestore, storage } from './firebase'
-import { createBoardItem, deriveHandle, normalizeUrl } from './metadata'
+import { createBoardItem, deriveHandle, detectPlatform, normalizeUrl } from './metadata'
 import type { BoardItem, FavoriteMode, NewItemInput, Platform } from './types'
 
 const VALID_PLATFORMS: Platform[] = ['x', 'instagram', 'threads', 'linkedin', 'facebook']
@@ -166,7 +166,7 @@ interface BoardState {
   addItem: (input: NewItemInput) => Promise<void>
   removeItem: (id: string) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
-  updateItem: (id: string, patch: Partial<Pick<BoardItem, 'title' | 'author' | 'description' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
+  updateItem: (id: string, patch: Partial<Pick<BoardItem, 'url' | 'title' | 'author' | 'description' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
   removeTag: (tag: string) => Promise<void>
   importItems: (raw: unknown) => Promise<void>
   setPlatform: (platform: 'all' | Platform) => void
@@ -244,8 +244,29 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   updateItem: async (id, patch) => {
     const { uid } = get()
     if (!uid) return
-    await updateDoc(itemDoc(uid, id), patch)
-    set({ items: get().items.map((item) => (item.id === id ? { ...item, ...patch } : item)) })
+    set({ error: '' })
+    try {
+      // url을 바꾸면 platform도 다시 판별합니다. 그대로 두면 출처 뱃지와
+      // 플랫폼 필터가 실제 링크와 어긋납니다.
+      const next: Partial<BoardItem> = { ...patch }
+      if (typeof next.url === 'string') {
+        let normalizedUrl: string
+        try {
+          normalizedUrl = normalizeUrl(next.url)
+        } catch {
+          throw new Error('올바른 URL이 아닙니다.')
+        }
+        if (get().items.some((item) => item.id !== id && item.url === normalizedUrl)) {
+          throw new Error('이미 저장된 URL입니다.')
+        }
+        next.url = normalizedUrl
+        next.platform = detectPlatform(normalizedUrl)
+      }
+      await updateDoc(itemDoc(uid, id), next)
+      set({ items: get().items.map((item) => (item.id === id ? { ...item, ...next } : item)) })
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : '수정하지 못했습니다.' })
+    }
   },
   // 태그를 쓰는 모든 항목에서 그 태그를 뺍니다. 마지막 항목에서 빠지면
   // 태그 목록(items에서 파생)에서도 자동으로 사라집니다.

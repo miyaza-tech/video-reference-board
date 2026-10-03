@@ -608,7 +608,8 @@ function App() {
           onClose={() => setEditingItem(null)}
           onSave={async (patch) => {
             await updateItem(editingItem.id, patch)
-            setEditingItem(null)
+            // URL이 잘못됐거나 중복이면 에러만 남고 저장은 안 됩니다. 그때는 닫지 않습니다.
+            if (!useBoardStore.getState().error) setEditingItem(null)
           }}
         />
       ) : null}
@@ -701,8 +702,9 @@ function EditModal({
 }: {
   item: BoardItem
   onClose: () => void
-  onSave: (patch: Partial<Pick<BoardItem, 'title' | 'author' | 'description' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
+  onSave: (patch: Partial<Pick<BoardItem, 'url' | 'title' | 'author' | 'description' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
 }) {
+  const [url, setUrl] = useState(item.url)
   const [title, setTitle] = useState(item.title)
   const [author, setAuthor] = useState(item.author)
   const [description, setDescription] = useState(item.description)
@@ -723,6 +725,7 @@ function EditModal({
     event.preventDefault()
     setSaving(true)
     await onSave({
+      url: url.trim() || item.url,
       title: title.trim() || item.title,
       author: author.trim(),
       description: description.trim(),
@@ -745,6 +748,14 @@ function EditModal({
         </div>
 
         <form className="flex flex-col gap-4 overflow-y-auto p-5" onSubmit={handleSave}>
+          <label className="drawer-field">
+            <span>URL</span>
+            <div className="input-shell">
+              <Link size={18} className="text-zinc-500" />
+              <input value={url} onChange={(e) => setUrl(e.target.value)} className="field" />
+            </div>
+          </label>
+
           <label className="drawer-field">
             <span>Title</span>
             <div className="input-shell">

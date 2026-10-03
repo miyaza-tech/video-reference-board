@@ -32,7 +32,7 @@ type OEmbedResponse = {
   thumbnail_url?: string
 }
 
-function detectPlatform(input: string): Platform {
+export function detectPlatform(input: string): Platform {
   const url = new URL(input)
   const host = url.hostname.toLowerCase().replace(/^www\./, '')
   const platform = (Object.keys(PLATFORM_HOSTS) as Platform[]).find((key) =>
