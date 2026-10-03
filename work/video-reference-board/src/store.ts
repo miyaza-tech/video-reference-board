@@ -14,13 +14,25 @@ import type { BoardItem, FavoriteMode, NewItemInput, Platform } from './types'
 
 const VALID_PLATFORMS: Platform[] = ['x', 'instagram', 'threads', 'linkedin', 'facebook']
 
+// 가져온 url은 카드 클릭 시 window.open으로 그대로 넘어갑니다.
+// javascript:나 data: 스킴이 섞여 들어오면 클릭 한 번에 스크립트가 실행되므로
+// 문자열인지만 보지 말고 스킴까지 확인합니다. 이 보드가 다루는 링크는 모두 http(s)입니다.
+function isHttpUrl(value: string) {
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 function validateAndSanitize(raw: unknown): BoardItem[] {
   if (!Array.isArray(raw)) throw new Error('유효하지 않은 파일입니다.')
   return raw.map((item: unknown, i: number) => {
     if (typeof item !== 'object' || item === null) throw new Error(`항목 ${i + 1}: 올바르지 않은 형식입니다.`)
     const r = item as Record<string, unknown>
     if (typeof r.id !== 'string' || !r.id) throw new Error(`항목 ${i + 1}: id가 올바르지 않습니다.`)
-    if (typeof r.url !== 'string' || !r.url) throw new Error(`항목 ${i + 1}: url이 올바르지 않습니다.`)
+    if (typeof r.url !== 'string' || !isHttpUrl(r.url)) throw new Error(`항목 ${i + 1}: url이 올바르지 않습니다.`)
     if (!VALID_PLATFORMS.includes(r.platform as Platform)) throw new Error(`항목 ${i + 1}: 지원하지 않는 플랫폼입니다.`)
     if (typeof r.title !== 'string') throw new Error(`항목 ${i + 1}: title이 올바르지 않습니다.`)
     if (typeof r.savedAt !== 'string') throw new Error(`항목 ${i + 1}: savedAt이 올바르지 않습니다.`)
