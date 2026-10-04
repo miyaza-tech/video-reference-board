@@ -23,7 +23,7 @@ import { useBoardStore } from './store'
 import type { BoardItem, Platform } from './types'
 import './index.css'
 
-const platforms: Array<'all' | Platform> = ['all', 'x', 'instagram', 'threads', 'linkedin', 'facebook']
+const platforms: Array<'all' | Platform> = ['all', 'x', 'instagram', 'threads', 'linkedin', 'facebook', 'youtube', 'etc']
 const presetTags = ['Prompt', 'Tutorial']
 // 필터바 태그 그룹. 나머지는 전부 사용자가 만든 태그로 묶입니다.
 const purposeTags = ['Prompt', 'Tutorial']

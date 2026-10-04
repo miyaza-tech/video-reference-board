@@ -12,7 +12,7 @@ import { firestore, storage } from './firebase'
 import { createBoardItem, deriveHandle, detectPlatform, normalizeUrl } from './metadata'
 import type { BoardItem, FavoriteMode, NewItemInput, Platform } from './types'
 
-const VALID_PLATFORMS: Platform[] = ['x', 'instagram', 'threads', 'linkedin', 'facebook']
+const VALID_PLATFORMS: Platform[] = ['x', 'instagram', 'threads', 'linkedin', 'facebook', 'youtube', 'etc']
 
 // 가져온 url은 카드 클릭 시 window.open으로 그대로 넘어갑니다.
 // javascript:나 data: 스킴이 섞여 들어오면 클릭 한 번에 스크립트가 실행되므로

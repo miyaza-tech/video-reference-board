@@ -1,4 +1,4 @@
-export type Platform = 'x' | 'instagram' | 'threads' | 'linkedin' | 'facebook'
+export type Platform = 'x' | 'instagram' | 'threads' | 'linkedin' | 'facebook' | 'youtube' | 'etc'
 
 export type FavoriteMode = 'all' | 'favorites'
 

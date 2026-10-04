@@ -1,13 +1,13 @@
 # Video Reference Board
 
 SNS에 흩어진 영상 레퍼런스를 한 보드에 모아 두는 개인용 웹앱입니다.
-X · Instagram · Threads · LinkedIn · Facebook 링크를 붙여 넣으면 플랫폼과 작성자 아이디를 자동으로 인식해 카드로 저장하고, 태그·검색·정렬로 다시 찾아볼 수 있습니다.
+X · Instagram · Threads · LinkedIn · Facebook · YouTube 링크와 일반 사이트(ETC) 링크를 붙여 넣으면 플랫폼과 작성자 아이디를 자동으로 인식해 카드로 저장하고, 태그·검색·정렬로 다시 찾아볼 수 있습니다.
 
 데이터는 Google 로그인 계정별로 Firestore에 저장되며, 다른 사용자는 접근할 수 없습니다.
 
 ## 주요 기능
 
-- **링크 저장** — URL만 넣으면 플랫폼 판별, `@아이디` 추출, 섬네일 자동 지정 (X는 oEmbed로 제목·섬네일 조회)
+- **링크 저장** — URL만 넣으면 플랫폼 판별, `@아이디` 추출, 섬네일 자동 지정 (X·YouTube는 oEmbed로 제목·섬네일 조회, 일반 사이트는 og:image 또는 페이지 스크린샷)
 - **섬네일 직접 지정** — 이미지를 고르면 720px/JPEG로 압축해 Firebase Storage에 업로드
 - **필터** — 플랫폼 / 태그(`real` `3D` `2D` `Original` `Prompt` `Tutorial` + 커스텀) / 좋아요 / 작성자별 모아보기. 한 번에 하나만 적용됩니다
 - **검색·정렬** — 제목·작성자·설명·태그·URL 통합 검색, 최신순 / 오래된순 / 제목순 / 플랫폼순 정렬
@@ -100,7 +100,7 @@ src/
 interface BoardItem {
   id: string          // crypto.randomUUID()
   url: string         // 정규화된 원본 URL
-  platform: 'x' | 'instagram' | 'threads' | 'linkedin' | 'facebook'
+  platform: 'x' | 'instagram' | 'threads' | 'linkedin' | 'facebook' | 'youtube' | 'etc'
   title: string
   description: string
   author: string      // 가능하면 '@handle', 아니면 호스트명
