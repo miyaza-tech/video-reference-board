@@ -33,7 +33,6 @@ const FALLBACK_IMAGES: Record<Exclude<Platform, 'youtube' | 'etc'>, string> = {
 const FETCH_TIMEOUT_MS = 8000
 
 type FetchedMetadata = {
-  title?: string
   author_name?: string
   thumbnail_url?: string
 }
@@ -52,7 +51,7 @@ export function detectPlatform(input: string): Platform {
   return platform ?? 'etc'
 }
 
-// 네트워크 없이 URL만 보고 바로 항목을 만듭니다. 제목·섬네일은 fetchItemDetails가 나중에 채웁니다.
+// 네트워크 없이 URL만 보고 바로 항목을 만듭니다. 작성자·섬네일은 fetchItemDetails가 나중에 채웁니다.
 // (일반 사이트 조회는 몇 초씩 걸릴 수 있어 저장을 그만큼 붙잡아 두지 않으려는 것입니다.)
 export function createBoardItem(input: NewItemInput): BoardItem {
   const normalizedUrl = normalizeUrl(input.url)
@@ -63,7 +62,6 @@ export function createBoardItem(input: NewItemInput): BoardItem {
     id: crypto.randomUUID(),
     url: normalizedUrl,
     platform,
-    title: fallback.title,
     author: fallback.author,
     imageUrl: input.imageUrl || fallback.imageUrl,
     tags: input.tags,
@@ -76,11 +74,10 @@ export function createBoardItem(input: NewItemInput): BoardItem {
 // oEmbed·사이트 메타데이터로 채울 수 있는 필드만 돌려줍니다. 얻은 게 없으면 빈 객체입니다.
 export async function fetchItemDetails(
   item: Pick<BoardItem, 'url' | 'platform' | 'author'>,
-): Promise<Partial<Pick<BoardItem, 'title' | 'author' | 'imageUrl'>>> {
+): Promise<Partial<Pick<BoardItem, 'author' | 'imageUrl'>>> {
   const embedded = await tryFetchMetadata(item.url, item.platform)
   if (!embedded) return {}
   return {
-    ...(embedded.title ? { title: embedded.title } : {}),
     // URL에서 아이디(@handle)를 뽑았으면 그걸 우선합니다.
     // (X oEmbed는 아이디가 아닌 표시 이름을 주므로 아이디가 있으면 그게 낫습니다.)
     ...(embedded.author_name && !item.author.startsWith('@') ? { author: embedded.author_name } : {}),
@@ -133,21 +130,19 @@ function getOEmbedEndpoint(url: string, platform: Platform): string | null {
 type MicrolinkResponse = {
   status?: string
   data?: {
-    title?: string | null
     author?: string | null
     publisher?: string | null
     image?: { url?: string } | null
   }
 }
 
-// 일반 사이트의 og:title / og:image는 서버를 거쳐야 읽을 수 있어(CORS) microlink 공개 API를 씁니다.
+// 일반 사이트의 og:image는 서버를 거쳐야 읽을 수 있어(CORS) microlink 공개 API를 씁니다.
 // 키 없이 쓰는 무료 한도(하루 50회)를 넘기면 실패하고, 그때는 스크린샷으로 대신합니다.
 async function tryFetchSiteMetadata(url: string): Promise<FetchedMetadata | null> {
   const json = await fetchJson<MicrolinkResponse>(`https://api.microlink.io/?url=${encodeURIComponent(url)}`)
   if (json?.status !== 'success' || !json.data) return null
-  const { title, author, publisher, image } = json.data
+  const { author, publisher, image } = json.data
   return {
-    title: title || undefined,
     author_name: author || publisher || undefined,
     thumbnail_url: image?.url && /^https?:/.test(image.url) ? image.url : undefined,
   }
@@ -169,13 +164,12 @@ function getFallbackMetadata(url: string, platform: Platform) {
   const author = getAuthor(platform, segments, parsed.hostname)
 
   if (platform === 'etc') {
-    return { title: parsed.hostname.replace(/^www\./, ''), author, imageUrl: getScreenshotUrl(url) }
+    return { author, imageUrl: getScreenshotUrl(url) }
   }
 
   if (platform === 'youtube') {
     const videoId = getYouTubeVideoId(parsed)
     return {
-      title: `${PLATFORM_LABELS[platform]} Video Reference`,
       author,
       // 메타데이터 조회가 실패해도 영상 ID만 있으면 섬네일은 정해진 주소로 받을 수 있습니다.
       imageUrl: videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : getScreenshotUrl(url),
@@ -183,7 +177,6 @@ function getFallbackMetadata(url: string, platform: Platform) {
   }
 
   return {
-    title: `${PLATFORM_LABELS[platform]} Video Reference`,
     author,
     imageUrl: FALLBACK_IMAGES[platform],
   }

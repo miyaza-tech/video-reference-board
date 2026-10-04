@@ -6,7 +6,6 @@ export interface BoardItem {
   id: string
   url: string
   platform: Platform
-  title: string
   author: string
   imageUrl: string
   tags: string[]

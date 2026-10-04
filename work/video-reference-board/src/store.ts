@@ -34,7 +34,6 @@ function validateAndSanitize(raw: unknown): BoardItem[] {
     if (typeof r.id !== 'string' || !r.id) throw new Error(`항목 ${i + 1}: id가 올바르지 않습니다.`)
     if (typeof r.url !== 'string' || !isHttpUrl(r.url)) throw new Error(`항목 ${i + 1}: url이 올바르지 않습니다.`)
     if (!VALID_PLATFORMS.includes(r.platform as Platform)) throw new Error(`항목 ${i + 1}: 지원하지 않는 플랫폼입니다.`)
-    if (typeof r.title !== 'string') throw new Error(`항목 ${i + 1}: title이 올바르지 않습니다.`)
     if (typeof r.savedAt !== 'string') throw new Error(`항목 ${i + 1}: savedAt이 올바르지 않습니다.`)
     // 아래 필드만 그대로 옮깁니다. 외부 JSON의 나머지 키(과거 embedHtml 등)는
     // XSS 유입 경로가 될 수 있으므로 전부 버립니다.
@@ -42,7 +41,6 @@ function validateAndSanitize(raw: unknown): BoardItem[] {
       id: r.id as string,
       url: r.url as string,
       platform: r.platform as Platform,
-      title: r.title as string,
       author: typeof r.author === 'string' ? r.author : '',
       imageUrl: typeof r.imageUrl === 'string' ? r.imageUrl : '',
       tags: Array.isArray(r.tags) ? (r.tags as unknown[]).filter((t): t is string => typeof t === 'string') : [],
@@ -153,7 +151,7 @@ async function migrateAuthors(
   }
 }
 
-// 방금 저장한 항목의 제목·작성자·섬네일을 뒤늦게 채웁니다.
+// 방금 저장한 항목의 작성자·섬네일을 뒤늦게 채웁니다.
 // 그사이 사용자가 직접 고친 필드나 직접 올린 섬네일은 덮어쓰지 않습니다.
 async function enrichItem(
   uid: string,
@@ -177,7 +175,7 @@ async function enrichItem(
     await updateDoc(itemDoc(uid, saved.id), patch)
     set({ items: get().items.map((item) => (item.id === saved.id ? { ...item, ...patch } : item)) })
   } catch {
-    // 채우지 못해도 기본 제목·섬네일로 저장된 상태라 그대로 둡니다.
+    // 채우지 못해도 기본 작성자·섬네일로 저장된 상태라 그대로 둡니다.
   }
 }
 
@@ -193,7 +191,7 @@ interface BoardState {
   addItem: (input: NewItemInput) => Promise<void>
   removeItem: (id: string) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
-  updateItem: (id: string, patch: Partial<Pick<BoardItem, 'url' | 'title' | 'author' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
+  updateItem: (id: string, patch: Partial<Pick<BoardItem, 'url' | 'author' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
   removeTag: (tag: string) => Promise<void>
   importItems: (raw: unknown) => Promise<void>
   setPlatform: (platform: 'all' | Platform) => void

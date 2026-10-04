@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  Search,
   Tag,
   Trash2,
   X as XIcon,
@@ -35,6 +36,15 @@ const masonryBreakpoints = {
   1340: 3,
   720: 2,
   460: 1,
+}
+
+// 검색어는 작성자·메모·태그에서만 찾습니다.
+function matchesQuery(item: BoardItem, query: string) {
+  return (
+    item.author.toLowerCase().includes(query) ||
+    (item.note ?? '').toLowerCase().includes(query) ||
+    item.tags.some((tag) => tag.toLowerCase().includes(query))
+  )
 }
 
 // 보드는 항상 최신순으로 봅니다.
@@ -212,6 +222,7 @@ function App() {
   } = useBoardStore()
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [activeAuthor, setActiveAuthor] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
   const [url, setUrl] = useState('')
   const [tagText, setTagText] = useState('')
   const [note, setNote] = useState('')
@@ -232,13 +243,15 @@ function App() {
   }, [setUid])
 
   const visibleItems = useMemo(() => {
+    const query = search.trim().toLowerCase()
     return items
       .filter((item) => platform === 'all' || item.platform === platform)
       .filter((item) => favoriteMode === 'all' || item.favorite)
       .filter((item) => !activeTag || item.tags.includes(activeTag))
       .filter((item) => !activeAuthor || item.author === activeAuthor)
+      .filter((item) => !query || matchesQuery(item, query))
       .sort(byNewest)
-  }, [activeAuthor, activeTag, favoriteMode, items, platform])
+  }, [activeAuthor, activeTag, favoriteMode, items, platform, search])
 
   const allTags = useMemo(
     () => Array.from(new Set([...presetTags, ...items.flatMap((item) => item.tags)])).sort(),
@@ -483,6 +496,23 @@ function App() {
                   필터
                 </button>
 
+                {/* 검색은 사이드바 필터와 겹쳐 걸립니다(둘 다 만족하는 카드만 보임). */}
+                <div className="input-shell min-h-9 w-full sm:w-64">
+                  <Search size={16} className="shrink-0 text-zinc-500" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="작성자 · 메모 · 태그 검색"
+                    className="field text-sm"
+                    aria-label="검색"
+                  />
+                  {search ? (
+                    <button type="button" className="shrink-0 text-zinc-500 hover:text-zinc-200" title="검색어 지우기" onClick={() => setSearch('')}>
+                      <XIcon size={15} />
+                    </button>
+                  ) : null}
+                </div>
+
                 <div className="ml-auto flex flex-wrap items-center gap-2">
                   {/* 좁은 폭에서는 라벨을 숨기고 아이콘만 남깁니다. */}
                   <button className="chip" type="button" onClick={exportJson} title="Export">
@@ -694,10 +724,9 @@ function EditModal({
 }: {
   item: BoardItem
   onClose: () => void
-  onSave: (patch: Partial<Pick<BoardItem, 'url' | 'title' | 'author' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
+  onSave: (patch: Partial<Pick<BoardItem, 'url' | 'author' | 'tags' | 'note' | 'imageUrl'>>) => Promise<void>
 }) {
   const [url, setUrl] = useState(item.url)
-  const [title, setTitle] = useState(item.title)
   const [author, setAuthor] = useState(item.author)
   const [note, setNote] = useState(item.note ?? '')
   const [tagText, setTagText] = useState(item.tags.join(', '))
@@ -717,7 +746,6 @@ function EditModal({
     setSaving(true)
     await onSave({
       url: url.trim() || item.url,
-      title: title.trim() || item.title,
       author: author.trim(),
       note: note.trim(),
       tags: parseTags(tagText),
@@ -743,13 +771,6 @@ function EditModal({
             <div className="input-shell">
               <Link size={18} className="text-zinc-500" />
               <input value={url} onChange={(e) => setUrl(e.target.value)} className="field" />
-            </div>
-          </label>
-
-          <label className="drawer-field">
-            <span>Title</span>
-            <div className="input-shell">
-              <input value={title} onChange={(e) => setTitle(e.target.value)} className="field" />
             </div>
           </label>
 
@@ -816,7 +837,7 @@ function EmptyState({ filtered }: { filtered: boolean }) {
         <h2 className="text-lg font-semibold text-white">
           {filtered ? 'No matching references' : 'No links saved yet'}
         </h2>
-        {filtered ? <p className="mt-1 text-sm text-zinc-400">왼쪽에서 다른 필터를 골라 보세요.</p> : null}
+        {filtered ? <p className="mt-1 text-sm text-zinc-400">검색어를 바꾸거나 왼쪽에서 다른 필터를 골라 보세요.</p> : null}
       </div>
     </div>
   )

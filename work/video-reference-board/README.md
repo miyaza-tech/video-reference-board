@@ -101,7 +101,6 @@ interface BoardItem {
   id: string          // crypto.randomUUID()
   url: string         // 정규화된 원본 URL
   platform: 'x' | 'instagram' | 'threads' | 'linkedin' | 'facebook' | 'youtube' | 'etc'
-  title: string
   description: string
   author: string      // 가능하면 '@handle', 아니면 호스트명
   imageUrl: string    // Storage 다운로드 URL 또는 외부 이미지 URL
