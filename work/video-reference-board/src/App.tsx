@@ -428,6 +428,23 @@ function App() {
           </div>
 
           <div className="sidebar-scroll">
+            {/* 검색은 아래 필터와 겹쳐 걸립니다(둘 다 만족하는 카드만 보임). */}
+            <div className="input-shell mb-2 min-h-9 shrink-0">
+              <Search size={16} className="shrink-0 text-zinc-500" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="작성자·메모·태그 검색"
+                className="field text-sm"
+                aria-label="검색"
+              />
+              {search ? (
+                <button type="button" className="shrink-0 text-zinc-500 hover:text-zinc-200" title="검색어 지우기" onClick={() => setSearch('')}>
+                  <XIcon size={15} />
+                </button>
+              ) : null}
+            </div>
+
             {/* 좋아요 */}
             <button
               className={`sidebar-row ${favoriteMode === 'favorites' ? 'sidebar-row-active' : ''}`}
@@ -486,32 +503,15 @@ function App() {
           <section className="sticky top-0 z-30 border-b border-white/10 bg-zinc-950/92 backdrop-blur">
             <div className="mx-auto flex max-w-[1880px] flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
               <div className="flex flex-wrap items-center gap-2">
-                {/* 사이드바가 접히는 폭에서만 보이는 토글. 필터가 걸려 있으면 강조합니다. */}
+                {/* 사이드바가 접히는 폭에서만 보이는 토글. 필터나 검색어가 걸려 있으면 강조합니다. */}
                 <button
-                  className={`chip hide-at-lg ${noFilter ? '' : 'chip-active'}`}
+                  className={`chip hide-at-lg ${noFilter && !search.trim() ? '' : 'chip-active'}`}
                   type="button"
                   onClick={() => setIsFilterOpen(true)}
                 >
                   <ListFilter size={15} />
                   필터
                 </button>
-
-                {/* 검색은 사이드바 필터와 겹쳐 걸립니다(둘 다 만족하는 카드만 보임). */}
-                <div className="input-shell min-h-9 w-full sm:w-64">
-                  <Search size={16} className="shrink-0 text-zinc-500" />
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="작성자 · 메모 · 태그 검색"
-                    className="field text-sm"
-                    aria-label="검색"
-                  />
-                  {search ? (
-                    <button type="button" className="shrink-0 text-zinc-500 hover:text-zinc-200" title="검색어 지우기" onClick={() => setSearch('')}>
-                      <XIcon size={15} />
-                    </button>
-                  ) : null}
-                </div>
 
                 <div className="ml-auto flex flex-wrap items-center gap-2">
                   {/* 좁은 폭에서는 라벨을 숨기고 아이콘만 남깁니다. */}
