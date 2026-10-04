@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore/lite'
 import { ref, uploadString, getDownloadURL } from 'firebase/storage'
 import { firestore, storage } from './firebase'
-import { createBoardItem, deriveHandle, detectPlatform, normalizeUrl } from './metadata'
+import { createBoardItem, deriveHandle, detectPlatform, fetchItemDetails, normalizeUrl } from './metadata'
 import type { BoardItem, FavoriteMode, NewItemInput, Platform } from './types'
 
 const VALID_PLATFORMS: Platform[] = ['x', 'instagram', 'threads', 'linkedin', 'facebook', 'youtube', 'etc']
@@ -153,6 +153,34 @@ async function migrateAuthors(
   }
 }
 
+// 방금 저장한 항목의 제목·작성자·섬네일을 뒤늦게 채웁니다.
+// 그사이 사용자가 직접 고친 필드나 직접 올린 섬네일은 덮어쓰지 않습니다.
+async function enrichItem(
+  uid: string,
+  saved: BoardItem,
+  keepImage: boolean,
+  set: (partial: Partial<BoardState>) => void,
+  get: () => BoardState,
+): Promise<void> {
+  const details = await fetchItemDetails(saved)
+  if (keepImage) delete details.imageUrl
+  const current = get().items.find((item) => item.id === saved.id)
+  if (!current) return
+  const patch = Object.fromEntries(
+    Object.entries(details).filter(([key]) => {
+      const field = key as keyof typeof details
+      return current[field] === saved[field]
+    }),
+  ) as typeof details
+  if (Object.keys(patch).length === 0) return
+  try {
+    await updateDoc(itemDoc(uid, saved.id), patch)
+    set({ items: get().items.map((item) => (item.id === saved.id ? { ...item, ...patch } : item)) })
+  } catch {
+    // 채우지 못해도 기본 제목·섬네일로 저장된 상태라 그대로 둡니다.
+  }
+}
+
 interface BoardState {
   uid: string | null
   items: BoardItem[]
@@ -218,9 +246,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       if (existing) {
         throw new Error('이미 저장된 URL입니다.')
       }
-      const item = await createBoardItem(input)
+      const item = createBoardItem(input)
       await setDoc(itemDoc(uid, item.id), item)
       set({ items: [item, ...get().items], loading: false })
+      void enrichItem(uid, item, Boolean(input.imageUrl), set, get)
     } catch (error) {
       set({ error: error instanceof Error ? error.message : '저장하지 못했습니다.', loading: false })
     }

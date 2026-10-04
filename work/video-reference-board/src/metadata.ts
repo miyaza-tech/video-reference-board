@@ -52,25 +52,39 @@ export function detectPlatform(input: string): Platform {
   return platform ?? 'etc'
 }
 
-export async function createBoardItem(input: NewItemInput): Promise<BoardItem> {
+// 네트워크 없이 URL만 보고 바로 항목을 만듭니다. 제목·섬네일은 fetchItemDetails가 나중에 채웁니다.
+// (일반 사이트 조회는 몇 초씩 걸릴 수 있어 저장을 그만큼 붙잡아 두지 않으려는 것입니다.)
+export function createBoardItem(input: NewItemInput): BoardItem {
   const normalizedUrl = normalizeUrl(input.url)
   const platform = detectPlatform(normalizedUrl)
   const fallback = getFallbackMetadata(normalizedUrl, platform)
-  const embedded = await tryFetchMetadata(normalizedUrl, platform)
 
   return {
     id: crypto.randomUUID(),
     url: normalizedUrl,
     platform,
-    title: embedded?.title || fallback.title,
-    // URL에서 아이디(@handle)를 뽑을 수 있으면 그걸 우선합니다.
-    // (X oEmbed는 아이디가 아닌 표시 이름을 주므로 아이디가 있으면 그게 낫습니다.)
-    author: fallback.author.startsWith('@') ? fallback.author : embedded?.author_name || fallback.author,
-    imageUrl: input.imageUrl || embedded?.thumbnail_url || fallback.imageUrl,
+    title: fallback.title,
+    author: fallback.author,
+    imageUrl: input.imageUrl || fallback.imageUrl,
     tags: input.tags,
     note: input.note?.trim() || '',
     favorite: false,
     savedAt: new Date().toISOString(),
+  }
+}
+
+// oEmbed·사이트 메타데이터로 채울 수 있는 필드만 돌려줍니다. 얻은 게 없으면 빈 객체입니다.
+export async function fetchItemDetails(
+  item: Pick<BoardItem, 'url' | 'platform' | 'author'>,
+): Promise<Partial<Pick<BoardItem, 'title' | 'author' | 'imageUrl'>>> {
+  const embedded = await tryFetchMetadata(item.url, item.platform)
+  if (!embedded) return {}
+  return {
+    ...(embedded.title ? { title: embedded.title } : {}),
+    // URL에서 아이디(@handle)를 뽑았으면 그걸 우선합니다.
+    // (X oEmbed는 아이디가 아닌 표시 이름을 주므로 아이디가 있으면 그게 낫습니다.)
+    ...(embedded.author_name && !item.author.startsWith('@') ? { author: embedded.author_name } : {}),
+    ...(embedded.thumbnail_url ? { imageUrl: embedded.thumbnail_url } : {}),
   }
 }
 
